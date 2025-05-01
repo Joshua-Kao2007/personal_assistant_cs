@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Study Mode</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: linear-gradient(135deg, #141e30, #243b55);
+      color: white;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .screen {
+      display: none;
+      padding: 2rem;
+    }
+
+    .active {
+      display: block;
+    }
+
+    .form-control, .input-group {
+      max-width: 600px;
+      margin: 1rem auto;
+    }
+
+    #timer {
+      font-size: 4rem;
+      font-weight: bold;
+      margin-top: 1rem;
+    }
+
+    .summary-box {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 1rem;
+      max-width: 700px;
+      margin: 1.5rem auto;
+    }
+
+    .btn-glow {
+      background-color: #28a745;
+      border: none;
+      color: white;
+      padding: 0.6rem 1.5rem;
+      font-size: 1rem;
+      border-radius: 30px;
+      transition: all 0.2s ease-in-out;
+    }
+
+    .btn-glow:hover {
+      background-color: #218838;
+      transform: scale(1.05);
+    }
+
+    .btn-back {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+    }
+
+    .study-card {
+      background: #fff;
+      color: #000;
+    }
+
+    .btn-audio {
+      margin-top: 0.5rem;
+    }
+
+    /* 🐇 Speed Rabbit Track */
+    .track-container {
+      width: 100%;
+      max-width: 700px;
+      height: 80px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 50px;
+      margin: 2rem auto 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .runner {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 2.5rem;
+      transition: left 0.5s ease-in-out;
+    }
+  </style>
+</head>
+<body>
+
+<a href="/" class="btn btn-outline-light btn-back">← Back to Home</a>
+
+<!-- Screen 1: Inputs + History -->
+<div id="input-screen" class="screen active">
+  <h1 class="text-center mb-4">📚 Study Mode</h1>
+
+  <div class="input-group">
+    <input type="text" class="form-control" id="study-topic" placeholder="Enter topic (e.g. Biology)">
+    <input type="number" class="form-control" id="study-minutes" placeholder="Min" min="0">
+    <input type="number" class="form-control" id="study-seconds" placeholder="Sec" min="0" max="59">
+  </div>
+
+  <textarea class="form-control mb-3" id="study-notes" rows="3" placeholder="What are you studying? Add notes for GPT (optional)"></textarea>
+
+  <div class="text-center">
+    <button class="btn btn-glow" onclick="startStudy()">Start Studying</button>
+  </div>
+
+  <div class="mt-5">
+    <h4 class="text-center mb-3">🗂 Study History</h4>
+    <div class="row" id="study-history"></div>
+  </div>
+</div>
+
+<!-- Screen 2: Study Timer + Rabbit Race -->
+<div id="study-screen" class="screen text-center">
+  <h2 id="study-header" class="mt-3"></h2>
+  <div id="timer" class="text-danger mt-3"></div>
+
+  <div class="summary-box d-none" id="summary-box">
+    <h5 class="text-white">🧠 GPT Summary</h5>
+    <p id="summary-text"></p>
+    <button class="btn btn-sm btn-outline-light btn-audio" onclick="playSummary()">🔊 Listen</button>
+    <button class="btn btn-sm btn-outline-danger btn-audio" onclick="stopSpeaking()">🛑 Stop</button>
+  </div>
+
+  <div class="track-container">
+    <div class="runner" id="rabbit">🐇</div>
+  </div>
+</div>
+
+<script>
+  let countdown;
+  let speech = null;
+  let music = new Audio("/static/sounds/sound1.mp3");
+  music.preload = "auto";
+
+  let tick = 0;
+  let totalSeconds = 0;
+
+  function switchToScreen(id) {
+    document.getElementById("input-screen").classList.remove("active");
+    document.getElementById("study-screen").classList.remove("active");
+    document.getElementById(id).classList.add("active");
+  }
+
+  function playMusic() {
+    music.pause();
+    music.currentTime = 0;
+    music.play().catch(err => console.log("Autoplay error:", err));
+  }
+
+  function speak(text) {
+    speech = new SpeechSynthesisUtterance(text);
+    speech.lang = 'en-US';
+    speech.rate = 1;
+    speechSynthesis.speak(speech);
+  }
+
+  function stopSpeaking() {
+    if (speechSynthesis.speaking) speechSynthesis.cancel();
+  }
+
+  function playSummary() {
+    const text = document.getElementById("summary-text").innerText;
+    speak(text);
+  }
+
+  function startStudy() {
+    const topic = document.getElementById("study-topic").value.trim();
+    const minutes = parseInt(document.getElementById("study-minutes").value) || 0;
+    const seconds = parseInt(document.getElementById("study-seconds").value) || 0;
+    const notes = document.getElementById("study-notes").value.trim();
+
+    if (!topic || (minutes === 0 && seconds === 0)) {
+      alert("Please enter a topic and valid duration.");
+      return;
+    }
+
+    totalSeconds = minutes * 60 + seconds;
+    const duration = `${minutes}m ${seconds}s`;
+    tick = 0;
+    moveRabbit(0);
+
+    switchToScreen("study-screen");
+    playMusic();
+
+    document.getElementById("study-header").innerText = `Currently studying: ${topic}`;
+    startCountdown(totalSeconds);
+
+    fetch("/study_api", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic, duration, notes })
+    })
+    .then(res => res.json())
+    .then(data => {
+      const summary = data.summary || "No summary available.";
+      document.getElementById("summary-text").innerText = summary;
+      document.getElementById("summary-box").classList.remove("d-none");
+    });
+  }
+
+  function moveRabbit(percent) {
+    const rabbit = document.getElementById("rabbit");
+    rabbit.style.left = `${percent}%`;
+  }
+
+  function startCountdown(seconds) {
+    clearInterval(countdown);
+    const timer = document.getElementById("timer");
+    const step = Math.floor(seconds / 10);
+    tick = 0;
+
+    countdown = setInterval(() => {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      timer.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+      if (seconds <= 0) {
+        clearInterval(countdown);
+        timer.textContent = "⏰ TIME'S UP!";
+        moveRabbit(100);
+        return;
+      }
+
+      if (seconds % step === 0 && tick < 10) {
+        tick++;
+        moveRabbit(tick * 10);
+      }
+
+      seconds--;
+    }, 1000);
+  }
+
+  function loadHistory() {
+    fetch("/study_history")
+      .then(res => res.json())
+      .then(data => {
+        const container = document.getElementById("study-history");
+        container.innerHTML = "";
+        data.forEach(entry => {
+          const card = document.createElement("div");
+          card.className = "col-md-4 mb-4";
+          card.innerHTML = `
+            <div class="card shadow study-card">
+              <div class="card-header bg-dark text-white d-flex justify-content-between">
+                <span>${entry.topic}</span>
+                <span>${entry.timestamp}</span>
+              </div>
+              <div class="card-body">
+                <p><strong>Duration:</strong> ${entry.duration}</p>
+                <p class="text-muted">${entry.summary}</p>
+              </div>
+            </div>`;
+          container.appendChild(card);
+        });
+      });
+  }
+
+  window.onload = loadHistory;
+</script>
+</body>
+</html>
