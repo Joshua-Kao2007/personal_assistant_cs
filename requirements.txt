@@ -1,6 +1,0 @@
-flask
-gunicorn
-openai
-pymongo
-python-dotenv
-opencv-python

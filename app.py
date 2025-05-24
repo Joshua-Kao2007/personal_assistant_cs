@@ -1,7 +1,7 @@
-from flask import Flask, request, jsonify, render_template, Response
+from flask import Flask, request, jsonify, render_template, Response # type: ignore
 from openai import OpenAI
 import os
-import cv2
+import cv2 # type: ignore
 import base64
 from pymongo import MongoClient
 from datetime import datetime
@@ -223,4 +223,5 @@ def get_emotion_entries():
 # --------------------------
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+

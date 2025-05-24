@@ -1,9 +1,0 @@
-{
-    "build": {
-      "env": {
-        "PYTHONUNBUFFERED": "1"
-      }
-    },
-    "start": "gunicorn app:app"
-  }
-  
